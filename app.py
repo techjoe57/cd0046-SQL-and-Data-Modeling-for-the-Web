@@ -27,29 +27,6 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 #----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-
-# Implemented Venue model and completed all model relationships and properties as a database migration
-
-
-
-  #  def __repr__(self) -> str:
-   #   return f'<Venue {self.id} {self.name} {self.genres} {self.city} {self.state} {self.address}>'
-
-# Implemented Artist model and completed all model relationships and properties as a database migration
-
- #   def __repr__(self) -> str:
-  #    return f'<Artist {self.id} {self.name} {self.city} {self.state} {self.genres}>'
-
-
-# Implemented Show model and completed all model relationships and properties as a database migration
-
-
- # def __repr__(self) -> str:
-  #    return f'<Show id: {self.id},artist_id: {self.artist_id},venue_id: {self.venue_id} {self.start_time}>'
-
-#----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
 
@@ -125,40 +102,33 @@ def show_venue(venue_id):
   
   venue = Venue.query.get_or_404(venue_id)
 
-  if not venue:
-    return render_template('errors/404.html')
-  
   past_shows_query = db.session.query(Show).join(Artist).filter(Show.venue_id==venue_id).filter(Show.
   start_time<datetime.now()).all()
-  past_shows = []
 
   upcoming_shows_query = db.session.query(Show).join(Artist).filter(Show.venue_id==venue_id).filter(Show. 
-start_time>datetime.now()).all()
+  start_time>datetime.now()).all()
+
+
+  past_shows = []
   upcoming_shows = []
 
-
-  #venue_shows = Show.query.join(Venue).filter(Venue.id == venue_id).all()
-  #print ('Venue Shows: ',venue_shows)
-
-  for show in past_shows_query:#filter(lambda show: show.start_time.date() < date.today(), venue_shows):
-    # artist = Artist.query.filter_by(id=show.artist_id).first()
+  for show in past_shows_query:
     temp_show={
       'artist_id': show.artist_id,
-      'artist_name': show.artist.name,
-      'artist_image_link': show.artist.image_link,
-      'start_time': str(show.start_time)
+      'artist_name': show.listArtists.name,
+      'artist_image_link': show.listArtists.image_link,
+      'start_time': show.start_time.strftime("%m/%d/%Y, %H:%M")
     }
     if show.start_time <= datetime.now():
       past_shows.append(temp_show)
   
 
-  for show in upcoming_shows_query:#filter(lambda show: show.start_time.date() < date.today(), venue_shows):
-    artist = Artist.query.filter_by(id=show.artist_id).first()
+  for show in upcoming_shows_query:
     temp_shows={
       'artist_id': show.artist_id,
-      'artist_name': show.artist.name,
-      'artist_image_link':show.artist.image_link,
-      'start_time': str(show.start_time)
+      'artist_name': show.listArtists.name,
+      'artist_image_link':show.listArtists.image_link,
+      'start_time': show.start_time.strftime("%m/%d/%Y, %H:%M")
     }
     if show.start_time >= datetime.now():
       upcoming_shows.append(temp_shows)
