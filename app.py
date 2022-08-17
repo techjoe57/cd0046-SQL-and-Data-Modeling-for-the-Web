@@ -15,6 +15,7 @@ from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
 from flask_migrate import Migrate
+from models import db, Artist, Venue, Show
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -31,59 +32,22 @@ migrate = Migrate(app, db)
 
 # Implemented Venue model and completed all model relationships and properties as a database migration
 
-class Venue(db.Model):
-    __tablename__ = 'Venue'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    genres = db.Column(db.String(120))
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    address = db.Column(db.String(120), nullable=True)
-    phone = db.Column(db.String(120))
-    image_link = db.Column(db.String(500), nullable=True)
-    facebook_link = db.Column(db.String(120), nullable=True)
-    website_link = db.Column(db.String(120), nullable=True)
-    seeking_talent = db.Column(db.Boolean, default=False, server_default="false")
-    seeking_description = db.Column(db.String(250), nullable=True)
-    shows = db.relationship('Show', backref='listVenues', lazy='dynamic')
 
-    def __repr__(self) -> str:
-      return f'<Venue {self.id} {self.name} {self.genres} {self.city} {self.state} {self.address}>'
+  #  def __repr__(self) -> str:
+   #   return f'<Venue {self.id} {self.name} {self.genres} {self.city} {self.state} {self.address}>'
 
 # Implemented Artist model and completed all model relationships and properties as a database migration
 
-class Artist(db.Model):
-    __tablename__ = 'Artist'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    genres = db.Column(db.String(120))
-    image_link = db.Column(db.String(500), nullable=True)
-    facebook_link = db.Column(db.String(120), nullable=True)
-    website_link = db.Column(db.String(120))
-    seeking_venue = db.Column(db.Boolean, default=False, server_default="false")
-    seeking_description = db.Column(db.String(250), nullable=True)
-    shows = db.relationship('Show', backref='listArtists', lazy='dynamic')
-
-    def __repr__(self) -> str:
-      return f'<Artist {self.id} {self.name} {self.city} {self.state} {self.genres}>'
+ #   def __repr__(self) -> str:
+  #    return f'<Artist {self.id} {self.name} {self.city} {self.state} {self.genres}>'
 
 
 # Implemented Show model and completed all model relationships and properties as a database migration
 
-class Show(db.Model):
-  __tablename__ = 'Show'
-  id = db.Column(db.Integer, primary_key=True)
-  start_time = db.Column(db.DateTime, default=datetime.utcnow)
-  artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'), nullable=False)
-  venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'), nullable=False)
 
-  def __repr__(self) -> str:
-      return f'<Show id: {self.id},artist_id: {self.artist_id},venue_id: {self.venue_id} {self.start_time}>'
+ # def __repr__(self) -> str:
+  #    return f'<Show id: {self.id},artist_id: {self.artist_id},venue_id: {self.venue_id} {self.start_time}>'
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -133,22 +97,24 @@ def search_venues():
 
   # An implemented search on artists with partial string search. 
 
-  response= {}
   venues=[]
-  search_term = request.form.get('search_term', '').lower()
-  search_result = Venue.query.filter(Venue.name.ilike(f'%{search_term}%')).all()
+  search_term = request.form.get('search_term', '')
+  search_result = db.session.query(Venue).filter(Venue.name.ilike(f'%{search_term}%')).all()
+  data = []
 
   for venue in search_result:
-    venue_shows_count = Show.query.join(Venue).filter(Venue.id == venue.id).count()
+    #venue_shows_count = Show.query.join(Venue).filter(Venue.id == venue.id).count()
 
     venues.append({
       'id': venue.id,
       'name': venue.name,
-      'num_upcoming_shows': venue_shows_count
+      'num_upcoming_shows': len(db.session.query(Show).filter(Show.venue_id==venue.id).filter(Show.start_time>datetime.now()).all())
     })
 
-    response['count'] = len(search_result)
-    response['data'] = venues
+    response={
+      'count': len(search_result),
+      'data': venues
+    }
   
   return render_template('pages/search_venues.html', results=response, search_term=search_term)
 
@@ -157,30 +123,45 @@ def show_venue(venue_id):
 
   # shows the venue page populated with real data
   
+  venue = Venue.query.get_or_404(venue_id)
+
+  if not venue:
+    return render_template('errors/404.html')
+  
+  past_shows_query = db.session.query(Show).join(Artist).filter(Show.venue_id==venue_id).filter(Show.
+  start_time<datetime.now()).all()
   past_shows = []
+
+  upcoming_shows_query = db.session.query(Show).join(Artist).filter(Show.venue_id==venue_id).filter(Show. 
+start_time>datetime.now()).all()
   upcoming_shows = []
 
-  venue = Venue.query.filter_by(id=venue_id).first()
-  venue_shows = Show.query.join(Venue).filter(Venue.id == venue_id).all()
-  print ('Venue Shows: ',venue_shows)
 
-  for show in filter(lambda show: show.start_time.date() < date.today(), venue_shows):
-    artist = Artist.query.filter_by(id=show.artist_id).first()
-    past_shows.append({
-      'artist_id': artist.id,
-      'artist_name': artist.name,
-      'artist_image_link': artist.image_link,
-      'start_time': str(show.start_time)
-    })
+  #venue_shows = Show.query.join(Venue).filter(Venue.id == venue_id).all()
+  #print ('Venue Shows: ',venue_shows)
 
-  for show in filter(lambda show: show.start_time.date() < date.today(), venue_shows):
-    artist = Artist.query.filter_by(id=show.artist_id).first()
-    upcoming_shows.append({
-      'artist_id': artist.id,
-      'artist_name': artist.name,
-      'artist_image_link': artist.image_link,
+  for show in past_shows_query:#filter(lambda show: show.start_time.date() < date.today(), venue_shows):
+    # artist = Artist.query.filter_by(id=show.artist_id).first()
+    temp_show={
+      'artist_id': show.artist_id,
+      'artist_name': show.artist.name,
+      'artist_image_link': show.artist.image_link,
       'start_time': str(show.start_time)
-    })
+    }
+    if show.start_time <= datetime.now():
+      past_shows.append(temp_show)
+  
+
+  for show in upcoming_shows_query:#filter(lambda show: show.start_time.date() < date.today(), venue_shows):
+    artist = Artist.query.filter_by(id=show.artist_id).first()
+    temp_shows={
+      'artist_id': show.artist_id,
+      'artist_name': show.artist.name,
+      'artist_image_link':show.artist.image_link,
+      'start_time': str(show.start_time)
+    }
+    if show.start_time >= datetime.now():
+      upcoming_shows.append(temp_shows)
 
    
 
@@ -258,12 +239,25 @@ def create_venue_submission():
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
-  # TODO: Complete this endpoint for taking a venue_id, and using
-  # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
+# SQLAlchemy ORM to delete a record.Cases where the session commits could fail handled
+  error = False
+  try:
+    venue = Venue.query.get(venue_id)
+    db.session.delete(venue)
+    db.session.commit()
+  except:
+    error = True
+    db.session.rollback()
+  finally:
+    db.session.close()
+  if error:
+    flash(f'An error occured. Venue {venue_id} could not be deleted')
+  if not error:
+    flash(f'Venue {venue_id} was deleted successfully')
 
   # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
   # clicking that button delete it from the db then redirect the user to the homepage
-  return None
+  return render_template('pages/home.html')
 
 #  Artists
 #  ----------------------------------------------------------------
@@ -377,8 +371,8 @@ def edit_venue_submission(venue_id):
   form = VenueForm(request.form , meta={'csrf': False})
 
   if form.validate():
-      try:
-        venue = {
+    try:
+      venue = {
         "name": form.name.data,
         "city": form.city.data,
         "state": form.state.data,
@@ -392,16 +386,16 @@ def edit_venue_submission(venue_id):
         "seeking_description": form.seeking_description.data,
       }
 
-        Venue.query.filter_by(id=venue_id).update(venue)
-        db.session.commit()
-        flash('Venue: ' + request.form['name'] + ' was successfully updated')
-      except Exception as e:
-        db.session.rollback()
-        error = True
-        print(f'Error ==> {e}')
-        flash('Venue: ' + request.form['name'] + ' was not successfully updated')
-      finally:
-        db.session.close()
+      Venue.query.filter_by(id=venue_id).update(venue)
+      db.session.commit()
+      flash('Venue: ' + request.form['name'] + ' was successfully updated')
+    except Exception as e:
+      db.session.rollback()
+      error = True
+      print(f'Error ==> {e}')
+      flash('Venue: ' + request.form['name'] + ' was not successfully updated')
+    finally:
+      db.session.close()
   else: 
       for error in form.errors:
         flash(form.errors[error][0])
